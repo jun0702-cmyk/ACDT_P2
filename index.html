@@ -4,32 +4,30 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>OnlyEnglish Pro</title>
+    <title>Korean Killer</title>
+
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+
     <script src="https://cdn.tailwindcss.com"></script>
 
-    <script src="/edge-impulse-standalone.js"></script>
+    <script src="./edge-impulse-standalone.js"></script>
 
     <script>
       var Module = typeof Module !== 'undefined' ? Module : {};
-
       let classifierInitialized = false;
-      Module.onRuntimeInitialized = function() {
-        classifierInitialized = true;
-      };
+      Module.onRuntimeInitialized = function() { classifierInitialized = true; };
 
       class EdgeImpulseClassifier {
-        constructor() {
-            this._module = Module; 
-        }
-
+        constructor() { this._module = Module; }
         init() {
           if (classifierInitialized === true) return Promise.resolve();
           return new Promise((resolve, reject) => {
-            // 안전장치: Module이 비었으면 window에서 다시 찾음
             if (!this._module || !this._module.onRuntimeInitialized) {
                 if (window.Module) this._module = window.Module;
             }
-            
             this._module.onRuntimeInitialized = () => {
               classifierInitialized = true;
               this._module.init();
@@ -37,23 +35,13 @@
             };
           });
         }
-
         classify(rawData, debug = false) {
           if (!classifierInitialized) throw new Error('Module is not initialized');
-          
-          // 실행 시점에 Module 연결이 끊겨있으면 복구 시도
-          if (!this._module._malloc && window.Module) {
-             this._module = window.Module;
-          }
-
+          if (!this._module._malloc && window.Module) { this._module = window.Module; }
           const obj = this._arrayToHeap(rawData);
           let ret = this._module.run_classifier(obj.buffer.byteOffset, rawData.length, debug);
           this._module._free(obj.ptr);
-
-          if (ret.result !== 0) {
-            throw new Error('Classification failed (err code: ' + ret.result + ')');
-          }
-
+          if (ret.result !== 0) throw new Error('Classification failed');
           let jsResult = { results: [] };
           for (let cx = 0; cx < ret.size(); cx++) {
             let c = ret.get(cx);
@@ -63,15 +51,6 @@
           ret.delete();
           return jsResult;
         }
-
-        getProperties() {
-           // properties를 가져올 때도 안전하게
-           if (!this._module.get_properties && window.Module) {
-               this._module = window.Module;
-           }
-           return this._convertToOrdinaryJsObject(this._module.get_properties(), this._module.emcc_classification_properties_t.prototype);
-        }
-
         _arrayToHeap(data) {
           let typedArray = new Float32Array(data);
           let numBytes = typedArray.length * typedArray.BYTES_PER_ELEMENT;
@@ -80,24 +59,12 @@
           heapBytes.set(new Uint8Array(typedArray.buffer));
           return { ptr: ptr, buffer: heapBytes };
         }
-
-        _convertToOrdinaryJsObject(emboundObj, prototype) {
-          let newObj = { };
-          for (const key of Object.getOwnPropertyNames(prototype)) {
-            const descriptor = Object.getOwnPropertyDescriptor(prototype, key);
-            if (descriptor && typeof descriptor.get === 'function') {
-              newObj[key] = emboundObj[key]; 
-            }
-          }
-          return newObj;
-        }
       }
-
       window.EdgeImpulseClassifier = EdgeImpulseClassifier;
     </script>
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <script type="module" src="./src/main.jsx"></script>
   </body>
 </html>
